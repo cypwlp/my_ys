@@ -1,6 +1,6 @@
 [package]
 name = "qarc-core"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Engine-agnostic archive core for QuickArc (Tauri refactor)"
 

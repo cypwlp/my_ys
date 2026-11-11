@@ -1,0 +1,188 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Optional existing tag; leave empty for a build-only dry run
+        required: false
+        default: ''
+        type: string
+      publish:
+        description: Publish a release for the supplied tag
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-22.04
+          - name: Windows
+            os: windows-latest
+          - name: macOS
+            os: macos-15
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+      - name: Install JavaScript dependencies
+        run: |
+          npm ci
+          npm --prefix web ci
+      - name: Rust tests
+        run: cargo test --workspace
+      - name: TypeScript check
+        run: npm --prefix web run typecheck
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            artifact: windows-x64
+            os: windows-latest
+            args: --bundles nsis
+          - name: Linux x64
+            artifact: linux-x64
+            os: ubuntu-22.04
+            args: --bundles deb,appimage
+          - name: macOS universal
+            artifact: macos-universal
+            os: macos-15
+            args: --target universal-apple-darwin --bundles dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.artifact }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install macOS universal targets
+        if: runner.os == 'macOS'
+        run: rustup target add x86_64-apple-darwin aarch64-apple-darwin
+
+      - name: Install JavaScript dependencies
+        run: |
+          npm ci
+          npm --prefix web ci
+
+      - name: Build bundles
+        run: npm run tauri build -- ${{ matrix.args }}
+
+      - name: Collect Windows assets
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release-assets -Force | Out-Null
+          Copy-Item "src-tauri/target/release/quickarc.exe" "release-assets/QuickArc-$env:RELEASE_TAG-windows-x64.exe"
+          $setup = Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
+          if (-not $setup) { throw "NSIS installer was not produced" }
+          Copy-Item $setup.FullName "release-assets/QuickArc-$env:RELEASE_TAG-windows-x64-setup.exe"
+
+      - name: Collect Linux assets
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          cp src-tauri/target/release/bundle/appimage/*.AppImage "release-assets/QuickArc-${RELEASE_TAG}-linux-x86_64.AppImage"
+          cp src-tauri/target/release/bundle/deb/*.deb "release-assets/QuickArc-${RELEASE_TAG}-linux-amd64.deb"
+
+      - name: Collect macOS assets
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          cp src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg "release-assets/QuickArc-${RELEASE_TAG}-macos-universal.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: release-assets/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    if: github.ref_type == 'tag' || (inputs.publish && inputs.tag != '')
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Generate SHA-256 checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+          sha256sum * > SHA256SUMS
+          mv SHA256SUMS ../SHA256SUMS
+          cd ..
+          mv SHA256SUMS release-assets/SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: QuickArc ${{ env.RELEASE_TAG }}
+          body_path: .github/release-notes.md
+          files: release-assets/*
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          draft: false
+          prerelease: false

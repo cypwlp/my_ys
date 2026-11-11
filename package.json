@@ -1,7 +1,7 @@
 {
   "name": "quickarc",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "scripts": {
     "dev": "npm --prefix web run dev",
     "build": "npm --prefix web run build",

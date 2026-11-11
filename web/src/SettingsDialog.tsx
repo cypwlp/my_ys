@@ -31,6 +31,8 @@ const FORMATS: { value: Format; label: string }[] = [
   { value: "Tar", label: "tar" },
 ];
 
+const IS_WINDOWS = /Windows/i.test(navigator.userAgent);
+
 const OVERWRITE: { value: Overwrite; label: string; hint: string }[] = [
   { value: "KeepBoth", label: "改名保留兩者", hint: "已存在時自動加上 (2)、(3)…" },
   { value: "Ask", label: "每次都問", hint: "目前由引擎以預設處理" },
@@ -91,7 +93,7 @@ export default function SettingsDialog({
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px: 3, borderBottom: 1, borderColor: "divider" }}>
         <Tab label="一般" />
         <Tab label="引擎" />
-        <Tab label="檔案總管" />
+        {IS_WINDOWS && <Tab label="Windows 檔案總管整合" />}
       </Tabs>
       <DialogContent sx={{ pt: "16px !important" }}>
         {tab === 0 && (
@@ -252,7 +254,7 @@ export default function SettingsDialog({
           </Stack>
         )}
 
-        {tab === 2 && (
+        {IS_WINDOWS && tab === 2 && (
           <Stack spacing={1.5}>
             <Chip
               size="small"

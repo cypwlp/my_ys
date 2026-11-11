@@ -312,14 +312,14 @@ dependencies = [
 
 [[package]]
 name = "qarc-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "qarc-core",
 ]
 
 [[package]]
 name = "qarc-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bzip2",
  "digest",
