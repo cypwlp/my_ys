@@ -2,6 +2,7 @@
 //! without starting a window.  Same verbs, same switch spellings, fewer surprises.
 
 use qarc_core::{Algo, CompressOptions, ExtractRequest, Ops, Overwrite};
+use std::io::IsTerminal;
 use std::path::Path;
 
 fn usage() -> ! {
@@ -67,6 +68,57 @@ fn bad_switch(token: &str) -> ! {
     usage()
 }
 
+/// A single updating line on stderr, so stdout stays clean for piping and a long
+/// archive is not a blank screen.  Throttled to ~10 Hz; padded, not ANSI, so it
+/// works in a plain conhost too.  Redirection keeps stderr completely quiet.
+struct ProgressLine {
+    last: Option<std::time::Instant>,
+    printed: bool,
+    enabled: bool,
+}
+
+impl ProgressLine {
+    fn new() -> Self {
+        Self {
+            last: None,
+            printed: false,
+            enabled: std::io::stderr().is_terminal(),
+        }
+    }
+
+    fn report(&mut self, p: qarc_core::Progress) {
+        if !self.enabled {
+            return;
+        }
+        let now = std::time::Instant::now();
+        if self
+            .last
+            .is_some_and(|last| now.duration_since(last).as_millis() < 100)
+        {
+            return;
+        }
+        self.last = Some(now);
+        let head = match p.fraction {
+            Some(f) => format!("{:3.0}%", (f * 100.0).clamp(0.0, 100.0)),
+            None => qarc_core::human::size(p.done),
+        };
+        let mut chars: Vec<char> = p.summary.chars().collect();
+        let tail = if chars.len() > 60 {
+            format!("…{}", chars.split_off(chars.len() - 59).into_iter().collect::<String>())
+        } else {
+            p.summary
+        };
+        eprint!("\r{:<72}", format!("{head}  {tail}"));
+        self.printed = true;
+    }
+
+    fn finish(&self) {
+        if self.printed {
+            eprintln!();
+        }
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.is_empty() {
@@ -104,9 +156,11 @@ fn main() {
                 if req.dest.is_empty() {
                     req.dest = ".".into();
                 }
+                let mut prog = ProgressLine::new();
                 let done = ops
-                    .extract(&req, &mut |_| {}, None)
+                    .extract(&req, &mut |p| prog.report(p), None)
                     .unwrap_or_else(|e| fail(&e));
+                prog.finish();
                 println!(
                     "{} 項 · {} · 阻擋 {} 項 · 引擎 {}",
                     done.items,
@@ -134,7 +188,9 @@ fn main() {
             if o.format == qarc_core::Format::Unknown {
                 o.format = qarc_core::formats::from_extension(archive);
             }
-            let done = ops.create(&o, &mut |_| {}, None).unwrap_or_else(|e| fail(&e));
+            let mut prog = ProgressLine::new();
+            let done = ops.create(&o, &mut |p| prog.report(p), None).unwrap_or_else(|e| fail(&e));
+            prog.finish();
             println!(
                 "{} 項 · {} → {} · 引擎 {} · 可用引擎 [{ids}]",
                 done.items,

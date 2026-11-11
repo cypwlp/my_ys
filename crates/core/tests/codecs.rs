@@ -416,6 +416,42 @@ fn every_tar_layer_that_actually_shrinks_can_be_created_and_read_back() {
 }
 
 #[test]
+fn tar_compression_level_changes_the_encoded_size() {
+    let dir = Temp::new("tarlevel");
+    let src = dir.path().join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    let payload = "QuickArc compression level probe 0123456789\n".repeat(12_000);
+    std::fs::write(src.join("payload.txt"), payload).unwrap();
+
+    for fmt in [Format::TarGz, Format::TarBz2] {
+        let ext = formats::info(fmt).extension;
+        let mut sizes = Vec::new();
+        for level in [1, 9] {
+            let archive = dir.path().join(format!("a-{level}.{ext}"));
+            TarEngine
+                .create(
+                    &qarc_core::CompressOptions {
+                        archive: archive.to_string_lossy().into_owned(),
+                        sources: vec![src.to_string_lossy().into_owned()],
+                        format: fmt,
+                        level,
+                        ..Default::default()
+                    },
+                    &mut |_| {},
+                )
+                .unwrap_or_else(|e| panic!("{fmt} level {level}: {e}"));
+            sizes.push(archive.metadata().unwrap().len());
+        }
+        assert!(
+            sizes[1] < sizes[0],
+            "{fmt} level 9 ({}) should beat level 1 ({})",
+            sizes[1],
+            sizes[0]
+        );
+    }
+}
+
+#[test]
 fn the_staging_temp_used_by_tar_zst_is_removed() {
     let dir = Temp::new("stage");
     let src = dir.path().join("src");

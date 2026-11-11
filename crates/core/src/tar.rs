@@ -93,7 +93,7 @@ fn reader(path: &Path, format: Format) -> EngineResult<(Box<dyn Read + 'static>,
     })
 }
 
-fn writer(path: &Path, format: Format) -> EngineResult<Box<dyn Write + 'static>> {
+fn writer(path: &Path, format: Format, level: u8) -> EngineResult<Box<dyn Write + 'static>> {
     let file = File::create(path).map_err(|e| {
         if e.kind() == std::io::ErrorKind::StorageFull {
             EngineError::DiskFull
@@ -101,10 +101,11 @@ fn writer(path: &Path, format: Format) -> EngineResult<Box<dyn Write + 'static>>
             EngineError::Io(e.to_string())
         }
     })?;
+    let level = level.clamp(1, 9) as u32;
     Ok(match format {
         Format::Tar => Box::new(file),
-        Format::TarGz => Box::new(GzEncoder::new(file, Compression::default())),
-        Format::TarBz2 => Box::new(bzip2::write::BzEncoder::new(file, bzip2::Compression::new(6))),
+        Format::TarGz => Box::new(GzEncoder::new(file, Compression::new(level))),
+        Format::TarBz2 => Box::new(bzip2::write::BzEncoder::new(file, bzip2::Compression::new(level))),
         // zstd has no streaming `Write` in the pure-Rust crate, so the tar is written
         // to a temp file and compressed in a second pass by create_to.  xz is refused
         // outright: see codec::encode_file.
@@ -277,7 +278,7 @@ impl Engine for TarEngine {
         cancel: Cancel<'_>,
     ) -> EngineResult<Outcome> {
         let sources: Vec<&Path> = opts.sources.iter().map(Path::new).collect();
-        create_to(Path::new(&opts.archive), &sources, opts.format, None, report, cancel)
+        create_to(Path::new(&opts.archive), &sources, opts.format, opts.level, None, report, cancel)
     }
 }
 
@@ -320,6 +321,7 @@ pub fn create_to(
     archive: &Path,
     sources: &[&Path],
     format: Format,
+    level: u8,
     root_label: Option<&str>,
     mut report: impl FnMut(Progress),
     cancel: Cancel<'_>,
@@ -334,7 +336,7 @@ pub fn create_to(
     } else {
         archive.to_path_buf()
     };
-    let mut writer = writer(&sink, format)?;
+    let mut writer = writer(&sink, format, level)?;
     {
         let mut tar = tar::Builder::new(&mut writer);
         for source in sources {
