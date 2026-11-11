@@ -1,0 +1,36 @@
+[package]
+name = "quickarc"
+version = "0.1.0"
+edition = "2021"
+description = "QuickArc desktop shell (Tauri 2 + React)"
+
+# Deliberately detached from the workspace root: this crate cannot link until a
+# dlltool/link.exe exists on the machine, and an unbuildable member would take
+# `cargo test` down with it.  Add it to [workspace.members] once it compiles.
+[workspace]
+
+# Without this, a `cargo build --release` binary still loads build.devUrl and shows
+# the webview's "cannot access localhost" page.  The Tauri CLI passes it implicitly;
+# anyone building by hand must not lose it.
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+qarc-core = { path = "../crates/core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_UI_Shell",
+    "Win32_System_Com",
+    "Win32_System_Registry",
+] }

@@ -1,0 +1,12 @@
+# Build artifacts
+/target/
+/src-tauri/target/
+/src-tauri/gen/
+/web/dist/
+/dist/
+
+# Dependencies
+node_modules/
+
+# Logs and scratch
+*.log

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "QuickArc",
+  "version": "0.1.0",
+  "identifier": "com.ys.quickarc",
+  "build": {
+    "beforeDevCommand": "npm --prefix web run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm --prefix web run build",
+    "frontendDist": "../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "速壓 QuickArc",
+        "width": 1180,
+        "height": 720,
+        "minWidth": 760,
+        "minHeight": 460,
+        "center": true,
+        "resizable": true,
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'",
+      "dangerousDisableAssetCspModification": ["style-src"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "publisher": "YS",
+    "icon": ["icons/icon.ico"],
+    "fileAssociations": [
+      { "ext": ["7z", "zip", "rar", "tar", "gz", "bz2", "xz", "zst", "tar.gz"], "name": "Archive", "role": "Viewer" }
+    ],
+    "windows": { "webviewInstallMode": { "type": "downloadBootstrapper" } }
+  }
+}

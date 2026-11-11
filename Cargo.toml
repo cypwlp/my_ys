@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/cli"]
+
+# The core is deliberately free of any crate that needs a C compiler or the Windows
+# SDK: this machine has no link.exe and no gcc, so `cargo test -p qarc-core` runs
+# green today.  Everything that needs webview2-com / windows-rs lives in the app
+# crate, which is added once a C++ toolchain exists.
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"

@@ -1,0 +1,25 @@
+[package]
+name = "qarc-core"
+version = "0.1.0"
+edition = "2021"
+description = "Engine-agnostic archive core for QuickArc (Tauri refactor)"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+encoding_rs = "0.8"
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+tar = "0.4"
+sha2 = "0.10"
+md-5 = "0.10"
+digest = "0.10"
+bzip2 = "0.6"
+lzma-rs = "0.3"
+ruzstd = "0.9"
+# Pure-Rust only: "zstd"/"lzma" would drag in C code and this machine has no C compiler.
+zip = { version = "2", default-features = false, features = ["deflate", "time"] }
+
+# No dev-dependencies: `tempfile` pulls getrandom -> windows-sys, and windows-sys
+# needs dlltool, which is not installed here.  The tests carry a 20-line temp-dir
+# helper instead so the suite stays runnable on this machine.
