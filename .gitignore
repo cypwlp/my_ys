@@ -10,3 +10,7 @@ node_modules/
 
 # Logs and scratch
 *.log
+
+# Python cache
+__pycache__/
+*.pyc
