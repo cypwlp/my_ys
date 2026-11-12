@@ -1,0 +1,12 @@
+{
+  "name": "QuickArc",
+  "short_name": "QuickArc",
+  "description": "跨平台桌面壓縮與解壓工具",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#07111f",
+  "theme_color": "#07111f",
+  "icons": [
+    { "src": "./assets/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://cypwlp.github.io/my_ys/sitemap.xml
